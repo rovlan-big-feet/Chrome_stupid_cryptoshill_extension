@@ -12,17 +12,34 @@ function parse_page_data(page_data) {
   while (m = regex.exec(page_data)) {
     matches.push(m[1]);
   }
-  console.log("++++ "+matches+" ++++");
+  console.log("--- age points : "+matches+" ---");
 }
 
-// Callback for "submit" button
-document.getElementById('submit').addEventListener('click', function(){
-  url_id = document.getElementById('url_id').value;
-  var url = url_prefix+url_id;
-  console.log("--- url "+url+" ---");
+// Callback that dumps the page's MHTML that contains the table we want
+// (since the JS from the page created it when the page loaded)
+// then converts it to text by downloading it from the object URL before forwarding it to the parsing function
+function capture_page_data(tab_id) {
+  console.log("--- tab id : "+tab_id+" ---");
+  chrome.pageCapture.saveAsMHTML({tabId: tab_id}, function(mhtmlData) {
+    var blob_url = window.webkitURL.createObjectURL(mhtmlData);
+    // DEBUG :
+    // window.open(blob_url);
+    var page_data;
+    fetch(blob_url).then(response => response.text())
+                   .then(data => page_data = data)
+                   .then(function () {
+                     // Remove line feeds added when converting MHTML blob ("=\n")
+                     page_data = page_data.replace(/=\r?\n|\r/g, "")
+                     console.log("--- page data dump : "+page_data+" ---");
+                     // Call to parsing function
+                     parse_page_data(page_data);
+                   });
+  });
+}
 
-  // Get tab list from foreground window and search for the tab that matches the url
-  // if no match, open the tab ourselves
+// Get tab list from foreground window and search for the tab that matches the url
+// if no match, open the tab ourselves
+function get_page(url) {
   chrome.tabs.query({currentWindow: true}, function(tabs) {
     var tab_coin = null;
     var found = false;
@@ -36,26 +53,39 @@ document.getElementById('submit').addEventListener('click', function(){
 
     // Match
     if (tab_coin) {
-      console.log("--- tab id : "+tab_coin.id+" ---");
-
-      // Dump page MHTML that contains the table we want (since the JS from the page created it when the page loaded)
-      // then convert it to text by downloading it from the object URL before forwarding it to the parsing function
-      chrome.pageCapture.saveAsMHTML({tabId: tab_coin.id}, function(mhtmlData) {
-        var blob_url = window.webkitURL.createObjectURL(mhtmlData);
-        // DEBUG :
-        // window.open(blob_url);
-        var page_data;
-        fetch(blob_url).then(response => response.text())
-                       .then(data => page_data = data)
-                       .then(function () {
-                         // Remove line feeds added when converting MHTML blob ("=\n")
-                         page_data = page_data.replace(/=\r?\n|\r/g, "")
-                         console.log("--- page data dump : "+page_data+" ---");
-                         // Call to parsing function
-                         parse_page_data(page_data);
-                       });
-      });
+      // Reload tab and calls page capture callback when it's done
+      chrome.tabs.reload(tab_coin.id, capture_page_data(tab_coin.id));
+    }
+    // No match
+    else {
+      // Open tab and calls page capture callback when it's done
+      chrome.tabs.create({ url: url }, function(tab) { capture_page_data(tab.id) });
     }
   });
+}
+
+// Callback for "submit" button
+document.getElementById('submit').addEventListener('click', function(){
+  url_id = document.getElementById('url_id').value;
+  var url = url_prefix+url_id;
+  console.log("--- url "+url+" ---");
+
+  // Store URL
+  chrome.storage.local.set({url_coin: url}, function() {
+    console.log("--- url stored : "+url+" ---");
+    // Replace URL in refresh button
+    var regex = /\(.*\)/g;
+    document.getElementById("refresh").innerHTML = document.getElementById("refresh").innerHTML.replace(regex, "("+url_id+")");
+  });
+
+  get_page(url);
 });
 
+// Callback for "refresh" button
+document.getElementById('refresh').addEventListener('click', function(){
+  // Get URL
+  chrome.storage.local.get(['url_coin'], function(result) {
+    console.log("--- url retrieved : "+result.url_coin+" ---");
+    get_page(result.url_coin);
+  });
+});

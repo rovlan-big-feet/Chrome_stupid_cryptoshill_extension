@@ -2,7 +2,7 @@
   "name": "Cryptoshill extension",
   "version": "1.0",
   "description": "Counts dumb shitcoins properties or something idk",
-  "permissions": ["tabs", "pageCapture"],
+  "permissions": ["tabs", "pageCapture", "storage"],
   "options_page": "options.html",
   "background": {
     "scripts": ["background.js"],
