@@ -1,5 +1,18 @@
 var url_id = "";
 var url_prefix = "https://bscscan.com/token/";
+var url_stored = null;
+
+// Get stored URL
+chrome.storage.local.get(['url_coin'], function(result) {
+  if(result.url_coin) {
+    console.log("--- url retrieved : "+result.url_coin+" ---");
+    url_stored = result.url_coin;
+
+    // Replace URL in refresh button
+    var regex = /\(.*\)/g;
+    document.getElementById("refresh").innerHTML = document.getElementById("refresh").innerHTML.replace(regex, "("+url_stored.substring(url_prefix.length)+")");
+  }
+});
 
 // Callback that takes page dump and extracts time info from it
 function parse_page_data(page_data) {
@@ -67,25 +80,23 @@ function get_page(url) {
 // Callback for "submit" button
 document.getElementById('submit').addEventListener('click', function(){
   url_id = document.getElementById('url_id').value;
-  var url = url_prefix+url_id;
-  console.log("--- url "+url+" ---");
+  url_stored = url_prefix+url_id;
+  console.log("--- url "+url_stored+" ---");
 
   // Store URL
-  chrome.storage.local.set({url_coin: url}, function() {
-    console.log("--- url stored : "+url+" ---");
+  chrome.storage.local.set({url_coin: url_stored}, function() {
+    console.log("--- url stored : "+url_stored+" ---");
     // Replace URL in refresh button
     var regex = /\(.*\)/g;
     document.getElementById("refresh").innerHTML = document.getElementById("refresh").innerHTML.replace(regex, "("+url_id+")");
   });
 
-  get_page(url);
+  get_page(url_stored);
 });
 
 // Callback for "refresh" button
 document.getElementById('refresh').addEventListener('click', function(){
-  // Get URL
-  chrome.storage.local.get(['url_coin'], function(result) {
-    console.log("--- url retrieved : "+result.url_coin+" ---");
-    get_page(result.url_coin);
-  });
+  if(url_stored) {
+    get_page(url_stored);
+  }
 });
