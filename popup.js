@@ -26,6 +26,42 @@ function parse_page_data(page_data) {
     matches.push(m[1]);
   }
   console.log("--- age points : "+matches+" ---");
+
+  // Convert age points to secs (y values array)
+  var y_values = [];
+  var t = {
+    sec: 1,
+    secs: 1,
+    min: 60,
+    mins: 60,
+    hr: 60 * 60,
+    hrs: 60 * 60,
+    day: 24 *60 * 60,
+    days: 24 * 60 * 60
+  };
+
+  function timespan(str){
+    var regex = /(\d+)\s*(sec|secs|min|mins|hr|hrs|day|days)/g;
+    var s = 0;
+    var m, x;
+ 
+    while (m = regex.exec(str)) {
+      x = Number(m[1]) * (t[m[2]]||0);
+      s += x;
+    }
+
+    return x ? s : NaN;
+  }
+
+  for(let i = 0; i < matches.length; i++){
+    y_values[i] = timespan(matches[i]);
+  }
+  console.log("--- age points in secs : "+y_values+" ---");
+
+  // Pass y values in query string and open the figure in another window
+  var plot_url = chrome.extension.getURL("plot.html");
+  var y_values_array = encodeURIComponent(JSON.stringify(y_values));
+  var plot_window = window.open(plot_url+"?"+y_values_array, "Plot time");
 }
 
 // Callback that dumps the page's MHTML that contains the table we want
