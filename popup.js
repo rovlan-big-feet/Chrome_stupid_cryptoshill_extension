@@ -61,7 +61,36 @@ function parse_page_data(page_data) {
   // Pass y values in query string and open the figure in another window
   var plot_url = chrome.extension.getURL("plot.html");
   var y_values_array = encodeURIComponent(JSON.stringify(y_values));
-  var plot_window = window.open(plot_url+"?"+y_values_array, "Plot time");
+  var window_id = null;
+
+  // Get stored plot window id
+  chrome.storage.local.get(['win_id'], function(result) {
+    if(result.win_id) {
+      console.log("--- window id retrieved : "+result.win_id+" ---");
+      window_id = result.win_id;
+    }
+  });
+
+  console.log("---- "+window_id+" ----");
+  // TODO: Debug closing previous window (signature invalid)
+  /*
+  if (window_id){
+    chrome.windows.remove({ windowId: window_id },
+                          function() { 
+                            chrome.storage.local.set({ win_id: null }, function() {
+                              console.log("--- window id removed ---");
+                            });
+                          });
+  }
+  */
+  // Open popup window with plot
+  // See opts in plot.js for the dimensions used (frame is assumed to be about 100p by 30p)
+  chrome.windows.create({ url: plot_url+"?"+y_values_array, type: "popup", height: 300, width: 630 },
+                        function(win) { 
+                          chrome.storage.local.set({win_id: win.id }, function() {
+                            console.log("--- window id stored : "+win.id+" ---");
+                          });
+                        });
 }
 
 // Callback that dumps the page's MHTML that contains the table we want
@@ -77,6 +106,8 @@ function capture_page_data(tab_id) {
     fetch(blob_url).then(response => response.text())
                    .then(data => page_data = data)
                    .then(function () {
+                     // Free URL used by the MHTML blob
+                     window.webkitURL.revokeObjectURL(blob_url);
                      // Remove line feeds added when converting MHTML blob ("=\n")
                      page_data = page_data.replace(/=\r?\n|\r/g, "")
                      console.log("--- page data dump : "+page_data+" ---");
@@ -107,7 +138,8 @@ function get_page(url) {
     }
     // No match
     else {
-      // Open tab and calls page capture callback when it's done
+      // Open tab (must be focused otherwise chrome cant scrape data)
+      // and calls page capture callback when it's done
       chrome.tabs.create({ url: url }, function(tab) { capture_page_data(tab.id) });
     }
   });
